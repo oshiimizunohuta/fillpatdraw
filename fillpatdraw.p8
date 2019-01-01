@@ -37,10 +37,16 @@ canvas.upd=true
 palette=mkrectq('80 8 40 40')
 palette.upd=true
 palsel=mkrectq('79 7 11 11')
-savebtn=mkrectq('75 52 20 10')
-exptbtn=mkrectq('97 52 28 10')
-loadbtn=mkrectq('75 65 20 10')
-cleabtn=mkrectq('97 65 28 10')
+playbtn=mkrectq('70 36 20 9')
+playbtn.cnt=0
+playbtn.stp=1
+playbtn.wait=4
+savebtn=mkrectq('70 48 20 9')
+loadbtn=mkrectq('70 60 20 9')
+cleabtn=mkrectq('70 72 24 9')
+exptbtn=mkrectq('50 72 28 9')
+menuwin=mkrectq('24 32 80 64')
+
 
 cprect=nil
 
@@ -51,6 +57,7 @@ mouse=getmouse()
 currentcel={x=-1,y=-1,fls=0}
 
 corout=nil
+cocallback=nil
 --spritestore
 
 selectrect=mkrectq('0 0 1 1')
@@ -59,9 +66,10 @@ selectrect.enable=false
 piecesrect=mkrectq('0 0 1 1')
 piecesrect.enable=false
 piecesrect.fls=0
-
+confirm=false
+menuwin.enable=false
 //stop()
-setcol(7)
+//setcol(7)
 
 end
 function _update60()
@@ -72,77 +80,80 @@ mouse=getmouse()
 updatekey()
 presskey=getkey()
 
+if playbtn.cnt>0 then
+ if mouse.lt then playbtn.cnt+=playbtn.wait playbtn.stp=0 end
+ if mouse.rt then playbtn.cnt-=playbtn.wait playbtn.stp=0 end
+ if presskey==' ' then playbtn.stp=playbtn.stp==0 and 1 or 0 end
+end
+
 local spos=getsprpos(mouse.x,mouse.y)
 local srect=selectrect
 local prect=piecesrect
-if not prect.enable and not srect.enable and mouse.lt then
-srect.x=spos.x*8
-srect.y=spos.y*8
-srect.refresh()
-selectrect.enable=true
-selectrect.fls=0
-end
-if selectrect.enable and mouse.l then
-srect.w=spos.x*8-srect.x
-srect.h=spos.y*8-srect.y
-srect.refresh()
-selectrect.fls+=1
-end
-if selectrect.enable and mouse.lut then
-srect.x=srect.w<0 and srect.ex or srect.x
-srect.y=srect.h<0 and srect.ey or srect.y
-srect.w=abs(srect.w)+8
-srect.h=abs(srect.h)+8
-srect.refresh()
-selectrect.enable=false
-piecesrect.enable=true
-return
-end
-local ccel=currentcel
-if ccel.x~=spos.x or ccel.y~=spos.y then
-ccel.x=spos.x
-ccel.y=spos.y
-ccel.fls=20
+if confirm then
+ if mouse.lt then
+  if exptbtn.contp(mouse.x-2,mouse.y-2) then
+  entryname(function(name,txt)
+  cocallback={
+  func=function(prm) exporttxt(prm.name,prm.txt)
+  end
+  ,prm={name=name,txt=txt}
+  }
+  end	
+  ,'exportto:')
+  confirm=false
+  elseif not menuwin.contp(mouse.x,mouse.y) then
+  confirm=false
+  end
+ end
+elseif menuwin.enable then
+ if mouse.lt then 
+  if playbtn.contp(mouse.x,mouse.y) then
+  playbtn.cnt=1
+  mouse.lt=false
+  elseif savebtn.contp(mouse.x,mouse.y) then
+  entryname(function(name,txt) savepng(name,txt) menuwin.enable=false end,'saveto:')
+  elseif loadbtn.contp(mouse.x,mouse.y) then
+  entryname(function(name,txt) loadpng(name,txt) menuwin.enable=false end,'loadto:')
+  elseif cleabtn.contp(mouse.x,mouse.y) then
+  entryname(function(name,txt) clearsprite(name,txt) menuwin.enable=false end,'type yes then clear:','')
+  elseif not menuwin.contp(mouse.x,mouse.y) then
+  menuwin.enable=false
+  end
+ end
+else
+selectrecttool()
+
 end
 
-spos=getsprpos(mouse.x,mouse.y,selectrect)
-if piecesrect.enable then
- if not mouse.l then
- prect.x=spos.x
- prect.y=spos.y
- prect.w=1
- prect.h=1
- prect.refresh()
- prect.fls=0
- elseif mouse.l then
- prect.w=spos.x-prect.x+1
- prect.h=spos.y-prect.y+1
- if prect.w*srect.w>spritearea.w then
- prect.w=flr(spritearea.w/srect.w)
- end
- if prect.h*srect.h>spritearea.h then
- prect.h=flr(spritearea.h/srect.h)
- end
- prect.refresh()
- prect.fls+=1
- 
- elseif mouse.lut then
- --confirm
- end
+if presskey=="\t" then
+menuwin.enable=not menuwin.enable
 end
 
 end
 
 function _draw()
 
+-- play fillpat draw --
+if playbtn.cnt>0 then
+ cls()
+ local f=fillpat.draw(flr(playbtn.cnt/playbtn.wait)+1,0,0)
+ if f then playbtn.cnt=1 fillpat.draw(flr(playbtn.cnt/playbtn.wait)+1,0,0)
+ else playbtn.cnt+=playbtn.stp
+ end
+ print(flr(playbtn.cnt/playbtn.wait)+1,0,122)
+ print('😐'..stat(1),90,122)
+ 
+ return
+end
+
 -- sprite sheet only mode --
 if viewsprite then
 cls()
+
 palt(0,false)
 spr(0,0,0,16,16)
 palt()
 
-//fillp(0x9009)
 local x
 local y
 
@@ -155,6 +166,7 @@ ccel.fls-=1
 elseif ccel.fls>0 then
 rect(x,y,x+7,y+7,({1,1,5,5,13,13,7,7})[flr(ccel.fls/2)])
 ccel.fls-=1
+
 end
 
 local srect=selectrect
@@ -168,189 +180,119 @@ rect(x+1,y+1,ex-1,ey-1,7)
 end
 local prect=piecesrect
 if prect.enable then
+local frect=mkrect(srect.x-1,srect.y-1,srect.w-2,srect.h-2)
+for y=0,prect.h do
+ local oy
+ if y==0 then
+ oy=0
+ elseif y==prect.h then
+ oy=2
+ else
+ oy=1
+ end
+ for x=0,prect.w do
+ local ox
+ if x==0 then
+ ox=0
+ elseif x==prect.w then
+ ox=2
+ else
+ ox=1
+ end
+ rect((x+prect.x)*srect.w-ox,(y+prect.y)*srect.h-oy,(x+prect.x)*srect.w-ox+1,(y+prect.y)*srect.h-oy+1,7)
+ local anm=flr((prect.fls/4)%(prect.w*prect.h))
+ local anm-=x+(y*prect.w)
+ if anm<4 and anm>=0 and x<prect.w and y<prect.h then
+ frect.x=(prect.x+x)*srect.w+1
+ frect.y=(prect.y+y)*srect.h+1
+ frect.draw(({15,14,8,2})[(anm%4)+1])
+ end
+end
+
+end
+
+
 local ex=prect.w>=0 and (prect.ex+1)-1 or (srect.ex)+1
 local ey=prect.h>=0 and (prect.ey+1)-1 or (srect.ey)+1
 x=prect.w>=0 and prect.x or (prect.x+1)-2
 y=prect.h>=0 and prect.y or (prect.y+1)-2
 rect(x*srect.w,y*srect.h,srect.w*ex-1,srect.h*ey-1,8)
 
- for y=0,prect.h do
- local oy
- if y==prect.h then
- oy=2
- elseif y==0 then
- oy=0
- else
- oy=1
- end
- for x=0,prect.w do
- local ox
- if x==prect.w then
- ox=2
- elseif x==0 then
- ox=0
- else
- ox=1
- end
- local anm=flr((prect.fls/4)%(prect.w*prect.h))
- if anm<x+(y*prect.w)+4 and anm>=x+(y*prect.w) and ox<2 and oy<2 then
- rect(x*srect.w-ox,y*srect.h-oy,(1+x)*srect.w-ox-1,(1+y)*srect.h-oy-1,15)
- else
- rect(x*srect.w-ox,y*srect.h-oy,x*srect.w-ox+1,y*srect.h-oy+1,7)
- end
- end
- end
+
 end
-print((prect.w)*srect.w,00,90,7)
+
+if menuwin.enable then
+fillp(0xa5a5)
+menuwin.draw(2,true)
+fillp()
+menuwin.draw(2,false)
+print('⌂menu ',menuwin.x+4,menuwin.y+4,7)
+rectfill(playbtn.x,playbtn.y,playbtn.ex,playbtn.ey,2)
+rectfill(playbtn.x,playbtn.y,playbtn.ex-1,playbtn.ey-1,14)
+print('play',playbtn.x+2,playbtn.y+2,2)
+
+rectfill(savebtn.x,savebtn.y,savebtn.ex,savebtn.ey,1)
+rectfill(savebtn.x,savebtn.y,savebtn.ex-1,savebtn.ey-1,12)
+print('save',savebtn.x+2,savebtn.y+2,1)
+
+rectfill(loadbtn.x,loadbtn.y,loadbtn.ex,loadbtn.ey,3)
+rectfill(loadbtn.x,loadbtn.y,loadbtn.ex-1,loadbtn.ey-1,11)
+print('load',loadbtn.x+2,loadbtn.y+2,3)
+print('close with tab key',menuwin.x+4,menuwin.ey-8,6)
+
+rectfill(cleabtn.x,cleabtn.y,cleabtn.ex,cleabtn.ey,2)
+rectfill(cleabtn.x,cleabtn.y,cleabtn.ex-1,cleabtn.ey-1,8)
+print('celar',cleabtn.x+2,cleabtn.y+2,2)
+print('close with tab key',menuwin.x+4,menuwin.ey-8,6)
+
+//return
+end
+
+if confirm then
+
+local srect=selectrect
+fillp(0xa5a5)
+menuwin.draw(1,true)
+--rectfill(24,32,104,96,1)
+fillp()
+menuwin.draw(13,false)
+--rect(24,32,104,96,13)
+print('cell size:'..srect.w..'❎'..srect.h..'',30,35,7)
+print('…patterns :'..(prect.w*prect.h)..'',30,45,7)
+rectfill(exptbtn.x,exptbtn.y,exptbtn.ex,exptbtn.ey,4)
+rectfill(exptbtn.x,exptbtn.y,exptbtn.ex-1,exptbtn.ey-1,9)
+print('export',exptbtn.x+2,exptbtn.y+2,4)
+
+end
+if corout and costatus(corout)~='dead' then
+ coresume(corout)
+// return
+else
+ if cocallback~=nil then cocallback.func(cocallback.prm) end
+ cocallback=nil
+ corout=nil
+end
+
 x=mouse.x-2
 y=mouse.y-2
 pset(x,y,7)
 pset(x+4,y,7)
 pset(x,y+4,7)
 pset(x+4,y+4,7)
- print(mouse.x..' '..mouse.y,0,0)
-
-//rect(mouse.x,mouse.y,mouse.x+3,mouse.y+3,7)
-//spr(1,mouse.x-4,mouse.y-4)
-
-return
+if isdebug then
+print((prect.w)*srect.w,00,90,7)
+print(mouse.x..' '..mouse.y,0,0)
 end
-
-fillp(0xf5f5)
-rectfill(0,0,128,128,1)
-fillp(0x0000)
---spriteatea--
-palt(0,false)
-spr(0,0,80-subview.y,16,16)
-palt()
-rect(view.x,view.y+80-subview.y,view.ex-1,view.ey+79-subview.y,7)
-map(0,0,0,0,16,16)
-palt(0,false)
-palette_draw()
-palt(0,true)
-
---canvas draw--
-
-fillp(0x1a4a)
-canvas.draw(1,true)
-fillp(0x0000)
-
-local ofx=0
-local ofy=0
-local ofw=0
-local ofh=0
-local vx=view.x
-local vy=view.y
-if vx<0 then
-ofx=-vx
-vx=0
-end
-if vy<0 then
-ofy=-vy
-vy=0
-end
-if view.ex>spritearea_w.ex then
-//ofw=-vx
-ofw=view.ex-spritearea_w.ex+1
-ofx=ofw
-end
-if view.ey>spritearea_w.ey then
-//ofh=-vy
-ofh=view.ey-spritearea_w.ey+1
-ofy=ofh
-end
-
-palt(0,false)
-sspr(vx,vy,32-ofx,32-ofy,8+((ofx-ofw)*2),8+((ofy-ofh)*2),64-(ofx*2),64-(ofy*2))
-//sspr(vx,vy+32,32-ofx,32-ofy,8+((ofx-ofw)*2),8+((ofy-ofh)*2),64-(ofx*2),64-(ofy*2))
-palt()
-
-
-if corout and costatus(corout)~='dead' then
- coresume(corout)
-// return
-else
- corout=nil
-
- --cell flash--
- if mouse.r==false and canvas.contp(mouse.x,mouse.y) then
-  local ccel=currentcel
-  local x=((ccel.x-1)*8)-(view.x%4)*2
-  local y=((ccel.y-1)*8)-(view.y%4)*2
-  if ccel.fls>0 then
-  rect(x,y,x+7,y+7,({13,13,5,5,1,1})[ccel.fls])
-  ccel.fls-=1
-  end
- end
-
-
- if mouse.r==false then
-// pal(1,0)
- pal(7,({7,8,13,2})[flr(pget(mouse.x,mouse.y)/4)%4+1])
- pal(2,colsel)
- palt(1,true)
- else
- palt(2,true)
- palt(7,true)
- pal(1,7)
- end
- 
- spr(1,mouse.x-4,mouse.y-4)
- pal()
- if isdebug then
- color(7)
- print(mouse.x..' '..mouse.y,0,0)
- print(view.x..' '..view.y,30,0)
- print(panhold,60,0)
- local p=canvaspos(mouse.x,mouse.y)
- print(p.x..' '..p.y,72,0)
-// print(history.current,80,0)
-// print(#history.pages,90,0)
- local celpos=pos2cel(flr((mouse.x-canvas.x+2)/2)+(view.x%4),flr((mouse.y-canvas.y+2)/2)+(view.y%4))
- print(patterns(celpos.x,celpos.y),98,0)
- local cols=patcols(celpos.x,celpos.y)
- print(tohex(cols[2])..tohex(cols[1]),118,0)
- end
-
---[[
-cls()
-rectfill(0,0,128,128,1)
---fillp(0xfcfc)
---rectfill(0,0,3,3,0x67)
-fillpat.draw(1,40,40)
-]]
-
-end
-
- if keystate==' ' then
- spr(17,mouse.x-4,mouse.y-4)
- else
- end
-
-local cx=canvas.x
-local cy=canvas.y
 
 if maqueetext and costatus(maqueetext)~='dead' then
 coresume(maqueetext)
 else maqueetext=nil
 end
-
+return
 end
 
-function setview(x,y)
-view.x=x
-view.y=y
-view.refresh()
-if view.y-4<subview.y then
-subview.y=view.y-4
 end
-if view.ey>spritearea.h then
-subview.y=spritearea.h-subview.h+4
-elseif view.ey-subview.y>subview.h-4 then
-subview.y=view.ey-subview.h+4
-end
-subview.refresh()
-end
+
 -->8
 --utils
 caller={}
@@ -461,8 +403,7 @@ end
 for i,v in pairs(s) do
 a=a..v..d
 end
- sub(a,#a-1,#a)
-return a
+return sub(a,1,#a-#d)
 end
 
 function split(str,d,dd)
@@ -617,59 +558,8 @@ return nil
 end
 -->8
 --canvas works
-function palette_draw()
-spr(2,palette.x,palette.y,5,4)
-spr(8,palette.x,palette.y+32,5,1)
-palsel.draw(15)
-//selcol
-end
 
-function palettemouse(mouse)
-local w=palette.w
-local h=palette.h
 
-local x=mouse.x-palette.x
-local y=mouse.y-palette.y
-setcol(flr(x/10)+flr(y/10)*4)
-end
-
-function setcol(col)
-color(col)
-//stop(col)
-colsel=col
-palsel.x=(col%4)*10+palette.x-1
-palsel.y=flr(col/4)*10+palette.y-1
-end
-
-function canvaspset(mouse,premouse)
-
-local h=mouse.y-premouse.y
-local w=mouse.x-premouse.x
-local l=sqrt(h*h+(w*w))
-local th=atan2(h,w)
-local iswrite=false
-
-l=l==0 and 1 or l
-
-for i=1,l,1 do
- local px=ceil(((sin(th)*i)+premouse.x-canvas.x)/2)+1+view.x
- local py=flr(((cos(th)*i)+premouse.y-canvas.y)/2)+1+view.y
- 
- if spritearea_w.contp(px,py) and canvas.contp(mouse.x,mouse.y) then
-  local prec=getsprpix(px,py)
-  local c=pos2cel(px,py)
-  recordcells(c.x,c.y,getpatcel(c.x,c.y))
-  psetsprram(px,py,colsel)
-  iswrite=true
---cell start:1~
-  if #patcols(c.x,c.y)>2 then
---  start:1~
-  swappatcol(prec,colsel,c.x,c.y)
-  end
- end
-end
-return iswrite
-end
 
 --start=1~
 function getsprpix(x,y)
@@ -694,33 +584,15 @@ p=bor(band(p,msk), shl(v,bxor(lr,1)*4))
 poke(memstart+x+(y*memrowlen),p)
 end
 
-function swappatcol(from,to,cx,cy)
-local cw=4
-local ch=4
-local pat=getpatcel(cx,cy)
-cy-=1
-cx-=1
-pat.each(function(p,x,y,o)
- if p==from then
- local x=cx*cw+x
- local y=cy*ch+y
- psetsprram(x,y,to)
- end
-end)
-end
-
 hexkey='0123456789abcdef'
-function patterns(cx,cy)
+function patterns(cx,cy,col)
 local pat=getpatcel(cx,cy)
 local cols={}
 --local ex=''
 local pats=''
 local row=''
 pat.each(function(p,x,y)
-if #cols==0 then add(cols,p)
-elseif #cols==1 and cols[1]~=p then add(cols,p)
-end
-row=row..tostr(p~=cols[1] and 1 or 0)
+row=row..tostr(p~=col and 1 or 0)
 if x==4 then
  local hx=tonum('0b'..row)+1
  pats=pats..sub(hexkey,hx,hx)
@@ -866,123 +738,6 @@ local p=memstart+(x/2)+(y*memrowlen)
 return (p>=memstart and p<=memend) and p or false
 end
 
-function fillcanvas(col,sx,sy,r,b)
-local gp
-b=(b==nil) and getsprpix(sx,sy) or b
-if r.contp(sx-1,sy-1)==false or spritearea.contp(sx-1,sy-1)==false then return end
-gp=getsprpix(sx,sy)
-if gp==b and gp~=col then
-p=pos2cel(sx,sy)
-recordcells(p.x,p.y,getpatcel(p.x,p.y))
-psetsprram(sx,sy,col)
-fillcanvas(col,sx,sy-1,r,b)
-fillcanvas(col,sx,sy+1,r,b)
-fillcanvas(col,sx-1,sy,r,b)
-fillcanvas(col,sx+1,sy,r,b)
-end
-end
-
-function cpcanvas(from,to)
-if from==nil or to==nil then return end
-local p={}
-local s={}
-local fm=band(from.x,1)==1
-local tm=band(to.x,1)==1
-for y=0,from.h-1 do
-for x=0,from.w-1 do
-local pos=pos2cel(to.x+x,to.y+y)
-recordcells(pos.x,pos.y,getpatcel(pos.x,pos.y))
-end
-end
-for y=0,from.h-1 do
-for x=0,from.w-8,8 do
-local pos=getmempos(from.x+x,from.y+y)
-if pos then
- add(p,fm
-  and 
- rotr(bor(
- band(peek4(pos),0xffff.fff0)
- ,lshr(band(peek(pos+4),0x0f),16)
- ),4)
-  or
- peek4(pos))
-end
-end
-end
-
-for y=0,from.h-1 do
-for x=0,from.w-8,8 do
-local pos=getmempos(to.x+x,to.y+y)
-if pos then
- pos=getmempos(to.x+x,to.y+y)
- if pos then
-  if tm then
-  poke4(pos,bor(band(peek4(pos),0x0000.000f),shl(p[1],4)))
-  poke(pos+4,bor(band(peek4(pos+4),0xf0),lshr(band(p[1],0xf000.0000),12)))
-  else
-  poke4(pos,p[1])
-  end
- end
-end
-del(p,p[1])
-end
-end
-end
-
-function lcanvas(r)
-local p
-local s
-for y=0,r.h-1 do
-s=shl(band(peek4(getmempos(r.x,r.y+y)),0x0000.000f),28)
-for x=r.w-8,0,-8 do
-local pos=getmempos(r.x+x,r.y+y)
-p=peek4(pos)
-poke4(pos,bor(lshr(p,4),s))
-s=shl(band(p,0x0000.000f),28)
-end
-end
-end
-function rcanvas(r)
-local p
-local s
-for y=0,r.h-1 do
-s=lshr(band(peek4(getmempos(r.x+r.w-8,r.y+y)),0xf000.0000),28)
-for x=0,r.w-8,8 do
-local pos=getmempos(r.x+x,r.y+y)
-p=peek4(pos)
-poke4(pos,bor(shl(p,4),s))
-s=lshr(band(p,0xf000.0000),28)
-end
-end
-end
-function ucanvas(r)
-local h=r.h
-local s={}
-for x=0,r.w-8,8 do
-add(s,peek4(getmempos(r.x+x,r.y)))
-end
-for y=0,h-2 do
-memcpy(getmempos(r.x,y+r.y),getmempos(r.x,y+1+r.y),r.w/2)
-end
-for x=0,r.w-8,8 do
-poke4(getmempos(r.x+x,h-1+r.y),s[1])
-del(s,s[1])
-end
-end
-function dcanvas(r)
-local h=r.h
-local s={}
-for x=0,r.w-8,8 do
-add(s,peek4(getmempos(r.x+x,r.y+h-1)))
-end
-for y=h-2,0,-1 do
-memcpy(getmempos(r.x,y+r.y+1),getmempos(r.x,y+r.y),r.w/2)
-end
-for x=0,r.w-8,8 do
-poke4(getmempos(r.x+x,r.y),s[1])
-del(s,s[1])
-end
-end
 
 -->8
 --controlls
@@ -1034,6 +789,69 @@ presskey=stat(31)
 end
 function getkey()
 return presskey
+end
+
+function selectrecttool()
+local spos=getsprpos(mouse.x,mouse.y)
+local srect=selectrect
+local prect=piecesrect
+if not prect.enable and not srect.enable and mouse.lt then
+srect.x=spos.x*8
+srect.y=spos.y*8
+srect.refresh()
+selectrect.enable=true
+selectrect.fls=0
+end
+if selectrect.enable and mouse.l then
+srect.w=spos.x*8-srect.x
+srect.h=spos.y*8-srect.y
+srect.refresh()
+selectrect.fls+=1
+end
+if selectrect.enable and mouse.lut then
+srect.x=srect.w<0 and srect.ex or srect.x
+srect.y=srect.h<0 and srect.ey or srect.y
+srect.w=abs(srect.w)+8
+srect.h=abs(srect.h)+8
+srect.refresh()
+selectrect.enable=false
+piecesrect.enable=true
+return
+end
+local ccel=currentcel
+if ccel.x~=spos.x or ccel.y~=spos.y then
+ccel.x=spos.x
+ccel.y=spos.y
+ccel.fls=20
+end
+
+spos=getsprpos(mouse.x,mouse.y,selectrect)
+if piecesrect.enable then
+ if not mouse.l and not mouse.lut then
+ prect.x=spos.x
+ prect.y=spos.y
+ prect.w=1
+ prect.h=1
+ prect.refresh()
+ prect.fls=0
+ elseif mouse.l then
+  prect.w=spos.x-prect.x+1
+  prect.h=spos.y-prect.y+1
+  if prect.w*srect.w>spritearea.w then
+  prect.w=flr(spritearea.w/srect.w)
+  end
+  if prect.h*srect.h>spritearea.h then
+  prect.h=flr(spritearea.h/srect.h)
+  end
+  prect.refresh()
+  prect.fls+=1
+ elseif mouse.lut then
+ --confirm
+ prect.enable=false
+ srect.enable=false
+ confirm=true
+ end
+end
 end
 -->8
 --memory
@@ -1130,32 +948,6 @@ if #history.pages>history.current-1 then
 end
 clearrecord()
 end
-function undo()
-if history.current>0 then
-history.current-=1
-else
-return
-end
-local h=history.pages[history.current+1]
-attachcels(h)
-local t=tablefill('●',#history.pages)
-if history.current>0 then
-t[history.current]='★'
-end
-setmaquee('undo: '..join(t,''),6,5)
-
-end
-function redo()
-local h=history.pages[history.current+1]
-attachcels(h)
-history.current+=(history.current<#history.pages and 1 or 0)
-local t=tablefill('●',#history.pages)
-if history.current>0 then
-t[history.current]='★'
-end
-setmaquee('redo'..join(t,''),2,15)
-
-end
 
 function clearsprite(name)
 local r=spritearea
@@ -1173,7 +965,7 @@ for x=1,r.w do
  psetsprram(x,y,0)
 end
 end
-sethistory(getrecord())
+--sethistory(getrecord())
 sfx(53)
 setmaquee('all cleared',8,2)
 end
@@ -1215,135 +1007,202 @@ end
 --format rule--
 --[[
 * pattern block    *
- + block in pat    : 8x8 pat
- + block size      : 4x3 block
- + 1 file pix size : 128*96 pix
+ + block in pat    : 2x2~32*32
+ + block size      : 1~256 block
+ + 1 file pix size : 128*128 pix
  + format like
-  - ppccppcc...ppcc ppccppcc..
-  - llllllll... (4char delimit)
+  - blocks cel_x cel_y lib data
+  - datadata... (2char delimit)
+  - liblibli... (4char delimit)
   
-* -p- pattern index*
- + index data      : 00~ff
+* -lib- pat library*
+ + pattarn value   : 0000~ffff
  + maxpatten num   : 256
  
-* -c- color data   *
- + color raw value : 0~f
- + 2 color value   : 00~ff
+* -data- lib index *
+ + lib index value : 00~ff
 
-* - - new line     *
- 
-* pattern liblary  *
- + raw pattern     : 0000~ffff
- + reffer from -p- pattern index
-
+* -\n- new line    *
+ + when add other exported data
+    then add to next line
+ + block index be added 
+    from blocks of next line
 ]]
 function exporttxt(name,txt)
 local pat={}
 local col={}
-local patw=8
-local path=8
-local blkw=4
-local blkh=3
-
+local srect=selectrect
+local prect=piecesrect
+local patw=srect.w/4
+local path=srect.h/4
+local blkw=prect.w
+local blkh=prect.h
+setmaquee('pickuping patterns...',1,5)
 for by=1,blkh do
 pat[by]={}
-col[by]={}
 for bx=1,blkw do
 pat[by][bx]={}
-col[by][bx]={}
+for cv=1,15 do
+pat[by][bx][cv]={}
 for cy=1,path do
-pat[by][bx][cy]={}
-col[by][bx][cy]={}
+pat[by][bx][cv][cy]={}
 for cx=1,patw do
-local c=patcols(cx+((bx-1)*patw),cy+((by-1)*path))
-local p=patterns(cx+((bx-1)*patw),cy+((by-1)*path))
-add(pat[by][bx][cy],p)
-local hx=tohex(shl(c[2],4)+c[1])
-hx=#hx<2 and '0'..hx or hx
+local p=patterns(cx+((bx-1)*patw)+(prect.x*patw),cy+((by-1)*path+(prect.y*path)),cv)
+add(pat[by][bx][cv][cy],p)
 
-add(col[by][bx][cy],hx)
+end
 end
 end
 end
 end
 
+setmaquee('to unique patterns...',1,5)
 local upt
 for by in all(pat) do
 for bx in all(by) do
- upt=uniquepat(bx,upt)
+for cv in all(bx) do
+ upt=uniquepat(cv,upt)
 end
 end
+end
+--vdmp(upt)
 
+setmaquee('apply indexes...',1,5)
 local pid={}
 for by,blky in pairs(pat) do
 pid[by]={}
 for bx,blkx in pairs(blky) do
 pid[by][bx]={}
-for y,row in pairs(blkx) do
-pid[by][bx][y]={}
+for cv,ct in pairs(blkx) do
+pid[by][bx][cv]={}
+for y,row in pairs(ct) do
+pid[by][bx][cv][y]={}
 for x,p in pairs(row) do
  for i,v in pairs(upt) do
-  if v==p then pid[by][bx][y][x]=i end
+  if v==p then pid[by][bx][cv][y][x]=i end
  end
 end
 end
 end
 end
+end
 
-local btext={}
+//local btext={}
+setmaquee('join codes...',1,5)
+local btext=''
 for by,blky in pairs(pat) do
 for bx,blkx in pairs(blky) do
+for cv,ct in pairs(blkx) do
 local bt={}
-for y,row in pairs(blkx) do
+for y,row in pairs(ct) do
 for x,p in pairs(row) do
 for i,id in pairs(upt) do
 i=tohex(i)
 i=#i<2 and '0'..i or i
 if p==id then
-add(bt,col[by][bx][y][x]..i) end
-end
-end
-end
-add(btext,bt)
-end
-end
+add(bt,i) end
+end--id
+end--x
+end--y
+btext=btext..join(bt,'')
+end--cv
+end--bx
+end--by
+--vdmp(#btext)
 
+setmaquee('compressing code...',1,5)
+local ztext=''
+local i=1
+local rt=''
+local pre=sub(btext,1,2)
+local c=1
+btext=sub(btext,3,#btext)
+while #pre>0 do
+local t=sub(btext,1,2)
+btext=sub(btext,3,#btext)
+if pre==t and c<255 then c+=1
+else
+c=tohex(c)
+c=#c<2 and '0'..c or c
+ztext=ztext..pre..c..'' c=1
+end
+pre=t
+
+i+=2
+end
+--until #btext==0
+--ztext=ztext..pre..c
+ztext=sub(ztext,1,#ztext)
+//vdmp({ztext,t})
 local text='--replace fillpatdata--'.."\n"
-..'fillpat={cpi='.."\n"
+..'fillpat={d='.."\n"
 ..'-- col-pid data --'.."\n"
-.."[[\n"..join(btext,'',"\n").."]]\n"
-..',pat='.."\n"
-..'-- pat data --'.."\n"
-.."[[\n"..join(upt,'').."\n]]\n"
-.."\n"
+.."[[\n"..join({#pat*#pat[1],#pat[1][1][1],#pat[1][1][1][1],join(upt,'')},' ')..' '..ztext.."\n]]\n"
 ..[[
+,c=function(p,i)
+local op=fillpat.p
+return op[p][2]*op[p][3]*15*i
+end
+,p={{}}
 ,draw=function(i,x,y)
-local o=fillpat
-local pr=flr(i/12)
-local c=0
-local s=1
-if pr==0 then pr=1
-else repeat
-if sub(o.pat,s,s)=="\n" then c+=1
-if c==pr then pr=s+1 end
+ local o=fillpat
+ local d=''
+ local dd=''
+ local ii=0
+ local op=o.p
+if o.dd==nil then
+d=o.d
+repeat
+ local s=sub(d,1,1)
+ d=sub(d,2,#d)
+ if s==" " or s=="\n" then
+  add(op[#op],dd)
+  if s=="\n" then add(op,{}) end
+  dd=''
+ else
+  dd=dd..s
+ end
+until #d==0
+dd={}
+del(op,op[#op])
+local p=#op
+for pp=1,p do
+d=op[pp][5]
+dd[pp]={}
+local lb=op[pp][4]
+while #d>0 do
+local f=(tonum('0x'..sub(d,1,2))-1)*4
+local m=tonum('0x'..sub(d,3,4))
+d=sub(d,5,#d)
+repeat
+add(dd[pp],tonum('0x'..sub(lb,f+1,f+4))+0x.8)
+m-=1
+until m<1
 end
-s+=1
-until #o.pat<s or (c==pr and pr==s+1)
 end
-for cy=1,8 do
-for cx=1,8 do
-local row=(i*256)+i
-local fx=shl(band(cx-1,7),2)
-local fy=shl(cy-1,5)
-local clpi=sub(o.cpi,row+fx+fy+1,row+fx+fy+4)
-local idp=shl(tonum('0x'..sub(clpi,3,4))-1,2)
-fillp(tonum('0x'..sub(o.pat,idp+pr,idp+pr+3)))
-local xx=(cx-1)*4+x
-local yy=(cy-1)*4+y
-rectfill(xx,yy,xx+3,yy+3,tonum('0x'..sub(clpi,1,2)))
+o.dd=dd
+end
+p=0
+dd=0
+i-=1
+repeat
+p+=1
+i-=dd
+if o.dd[p+0]==nil then return true end
+dd=op[p][1]
+until i-dd<0
+local w=op[p][2]
+local h=op[p][3]
+for dd=o.c(p,i),o.c(p,i+1)-1 do
+d=o.dd[p][dd+1]
+if d~=0xffff.8 then 
+fillp(d)
+local xx=4*(dd%w)+x
+local yy=4*(flr(dd/w)%h)+y
+rectfill(xx,yy,xx+3,yy+3,flr(dd/(w*h))%15+1)
 end
 end
-fillp()
+return false
 end
 }
 ]]
@@ -1395,55 +1254,77 @@ end)
 end
 -->8
 --replace fillpatdata--
-fillpat={cpi=
+fillpat={d=
 -- col-pid data --
 [[
-660196029603790497059602f90699016601960799015908590999019f0a9901960b950c590d950ef90ff9079f10990199015911591295139f14f9109f15791699019901990195139f179f189f19791a990199019901951b591c9901791d7701990199019901791e790b751a770177019901791e791577017701770177017701
-901e901f000100010001000190209021901999019022000190239002901a09199007942409119025902690274907092490139428990199019901990149040929902a9901192b99019901192c1921092d901109219225191e191f292e922f0927000190307931273227339734090a000100010001701107350735072800010001
-0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
-0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
-0001d036d02900010d130001000100010001d036d02900010d130001000100010001d037d01100010d1a0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
-0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
-0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
-0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
-00010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001071a0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
-0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
-0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
-0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001
+4 16 16 ffffffc8c13cfff0fff3ffee1000001303ff3dee8377eccc7fffcc898888377fffed17ff0000fe8137ffdaef3777f879f7999ddfffcbaccfd7ff6546f773fea9f77f31ffffecff12ec0871130011b9ddeeee3efd8cff110fd93f00ff3ffffffcfcb73fc3ff0fff3ceeddefffdbbbfffefe00f100ff7377778fff319effe8ff37fecc0133ccee3bdfffe1fc3ff1fffe80e0003773ffc380e80001000f7000ff71edb788c8037fcfff000801118c8973777bb96677ffddc8883337b9bfbfec777ffff77333c4ac77f7ffdffec8177f88ce77103333eeef7330cefff7ffffc0e91316cb00887bcfe81f01ed1ff3dbf7bfff5eeeff91088c3003ffb1eec0ffe0008f001f6c8000200112b910fc8e32220137889b6cc839fffeff0fffff00c88d01ff0eff118cff17ceef7733001777fffc803000bbbbed99feee07f708ee7376ffefccc800375331eecc4013800818ce88080377088088ef19df8ccfcc00003f16ece934ff7fe00cbbdd117ff77bdefffeedfff9fc00937ffeddffbb9cff1cffc0fff0ffb7ffc21180003377c880017f3bfffffdf733d113eeffff8eff779bb9fdfefddddeeff7bdfffb77bbf79ecffc734eff1ff771bdef46ef8b77cdddffb733557b8fce0ff30f30ffc1efc80f593f088ffff1f777888cf999dfffecc80cff008c0117e1ffccef1113c8007331026cf300000333ff1ffffd93 01130201030104020501010a06010701080109010a010b01010a0c0108010d0101010e010d01010a0f011001010111011201010b1301010114011501010c13011601170101061801190101051a0101051b0101021c011d01010b1e011f0120012101010c2201010f23012401010225012601010a0f0127012801290113012a01010a2b012c012d0101012e012f0101ff01ff01ff01393001010e3101320133023401010a35013601010e37010107380139013a013b0101043c0101093d013e0101083f014001010d41014201010e43011701010f440101a3450146014701010a3001480149014a01010b4b014c0113014d014e024f015001010751010101520153010103540155013c010104380129010101410156010105570158010103590136015a015b015c015d0101045e015f01600101030f0161016201360163016401010265010101660167010104680169016a0101016b016c016d016e016f017001710117010105720107013b010101730174017501760101017701780101054301130107015001010379017a0101087b0113027c017d0104017e0113017f01010736018001810182011301830113028401850101078601870113028801890109018a014201010736018b0136012f0101028c018d010d01012c38016f018e013b01010c8f019001910192016101010730019301010138010402010194019501010666019601970198011303990161019a0101049b010101420101019c0113039d019e019f01780101040701a0016a010101a101a2011302a301a401a5010105a6010101a7013b01a8018c017b01a901aa0188010106ab010102ac01ad018e01ae01af01b001b10101053601b20101032b0112018c01b301130115010106b40101063601b50101073601b601010fb701b2010106b8010108b901010366012301ba01bb01bc01bd010106be016e01bf01c001120154012f01c101c20201ff01ff01ff01ff01292301ba01c3010d01010b2301c4011301c501010cc60113010801010d1301c701010e1701010e2901010838013b0101060d010115c8010113c901010b0601ca010102cb01010bcc01150101a0cd01ce01010b300101030d01010bcf010101d0010107c9010101d101010dd20161013601d3010102d401010ad50101013601d60105013c01010ad20161010102d701d8010103d901da010106db0104017f01bb01010165010103dc013b010106dd01de0101033c010101df010601e0010106e101e201e30133017401e401e5013301e601e70101ff01ff010a29011302080101080201030104020501e801af010d01010706010701080109010a010b01010a0c0108010d0101010e010d01010a0f011001010111011201010b1301010114011501010c13011601170101061801190101051a0101051b0101021c011d01010b1e011f0120012101010c2201010f230124010102250126010104e90101050f0127012801290113012a010103a4011301ea0101042b012c012d0101012e012f010103eb012701010e36010d0101ff01ff01ff01243001010e3101320133023401010a35013601010e37010107380139013a013b0101043c0101093d013e0101083f014001010d41014201010e43011701010f440101a3450146014701010a3001480149014a01010b4b014c0113014d014e024f015001010751010101520153010103540155013c010104380129010101410156010105570158010103590136015a015b015c015d0101045e015f01600101030f0161016201360163016401010265010101660167010104680169016a0101016b016c016d016e016f017001710117010105720107013b010101730174017501760101017701780101054301130107015001010379017a0101087b0113027c017d0104017e0113017f01010736018001810182011301830113028401850101078601870113028801890109018a014201010736018b0136012f0101028c018d010d01012c38016f018e013b01010c8f019001910192016101010730019301010138010402010194019501010666019601970198011303990161019a0101049b010101420101019c0113039d019e019f01780101040701a0016a010101a101a2011302a301a401a5010105a6010101a7013b01a8018c017b01a901aa0188010106ab010102ac01ad018e01ae01af01b001b10101053601b20101032b0112018c01b301130115010106b40101063601b50101073601b601010fb701b2010106b8010108b901010366012301ba01bb01bc01bd010106be016e01bf01c001120154012f01c101c20201ff01ff01ff01ff01292301ba01c3010d01010b2301c4011301c501010cc60113010801010d1301c701010e1701010e2901010838013b0101060d010115c8010113c901010b0601ca010102cb01010bcc01150101a0cd01ce01010b300101030d01010bcf010101d0010107c9010101d101010dd20161013601d3010102d401010ad50101013601d60105013c01010ad20161010102d701d8010103d901da010106db0104017f01bb01010165010103dc013b010106dd01de0101033c010101df010601e0010106e101e201e30133017401e401e5013301e601e70101ff01ff010a290113040107020103010402050113039601010606010701080109010a010b012b012e018d0101070c0108010d0101010e010d01010a0f011001010111011201010b1301010114011501010c13011601170101061801190101051a0101051b0101021c011d01010b1e011f01200121010109ec0101022201010ced0101022301240101022501260101046f0101050f0127012801290113012a010103ee011301620101042b012c012d0101012e012f010103eb011301c501010d3601900101ff01ff01ff01243001010e3101320133023401010a35013601010e37010107380139013a013b0101043c0101093d013e0101083f014001010d41014201010e43011701010f440101a3450146014701010a3001480149014a01010b4b014c0113014d014e024f015001010751010101520153010103540155013c010104380129010101410156010105570158010103590136015a015b015c015d0101045e015f01600101030f0161016201360163016401010265010101660167010104680169016a0101016b016c016d016e016f017001710117010105720107013b010101730174017501760101017701780101054301130107015001010379017a0101087b0113027c017d0104017e0113017f01010736018001810182011301830113028401850101078601870113028801890109018a014201010736018b0136012f0101028c018d010d01012c38016f018e013b01010c8f019001910192016101010730019301010138010402010194019501010666019601970198011303990161019a0101049b010101420101019c0113039d019e019f01780101040701a0016a010101a101a2011302a301a401a5010105a6010101a7013b01a8018c017b01a901aa0188010106ab010102ac01ad018e01ae01af01b001b10101053601b20101032b0112018c01b301130115010106b40101063601b50101073601b601010fb701b2010106b8010108b901010366012301ba01bb01bc01bd010106be016e01bf01c001120154012f01c101c20201ff01ff01ff01ff01292301ba01c3010d01010b2301c4011301c501010cc60113010801010d1301c701010e1701010e2901010838013b0101060d010115c8010113c901010b0601ca010102cb01010bcc01150101a0cd01ce01010b300101030d01010bcf010101d0010107c9010101d101010dd20161013601d3010102d401010ad50101013601d60105013c01010ad20161010102d701d8010103d901da010106db0104017f01bb01010165010103dc013b010106dd01de0101033c010101df010601e0010106e101e201e30133017401e401e5013301e601e70101ff01ff010cc4018801ef01f001130101050201030104020501380113013c013001ae01f101010406010701080109010a010b0129014d01f2012f0101060c0108010d0101010e010d01010a0f011001010111011201010b1301010114011501010c13011601170101061801190101051a0101051b0101021c011d01010b1e011f0120012101010938013b0101012201010cf301f401010123012401010225012601010a0f0127012801290113012a010104f501f60101042b012c012d0101012e012f01010329011301f701010d3601e401c20101ff01ff01ff0123300101056601f8013b010106310132013302340101020f01f901fa010105350136010106fb01010737010107380139013a013b0101043c0101093d013e0101083f014001010d41014201010e43011701010f4401014cfc01010e54010d010146450146014701010a3001480149014a01010b4b014c0113014d014e024f015001010751010101520153010103540155013c010104380129010101410156010105570158010103590136015a015b015c015d0101045e015f01600101030f0161016201360163016401010265010101660167010104680169016a0101016b016c016d016e016f017001710117010105720107013b010101730174017501760101017701780101054301130107015001010379017a0101087b0113027c017d0104017e0113017f01010736018001810182011301830113028401850101078601870113028801890109018a014201010736018b0136012f0101028c018d010d01012c38016f018e013b01010c8f019001910192016101010730019301010138010402010194019501010666019601970198011303990161019a0101049b010101420101019c0113039d019e019f01780101040701a0016a010101a101a2011302a301a401a5010105a6010101a7013b01a8018c017b01a901aa0188010106ab010102ac01ad018e01ae01af01b001b10101053601b20101032b0112018c01b301130115010106b40101063601b50101073601b601010fb701b2010106b8010108b901010366012301ba01bb01bc01bd010106be016e01bf01c001120154012f01c101c20201ff01ff01ff01ff01292301ba01c3010d01010b2301c4011301c501010cc60113010801010d1301c701010e1701010e2901010838013b0101060d010115c8010113c901010b0601ca010102cb01010bcc01150101a0cd01ce01010b300101030d01010bcf010101d0010107c9010101d101010dd20161013601d3010102d401010ad50101013601d60105013c01010ad20161010102d701d8010103d901da010106db0104017f01bb01010165010103dc013b010106dd01de0101033c010101df010601e0010106e101e201e30133017401e401e5013301e601e70101ff01ff0103
+1 16 16 ffffffc8c13cfff0fff3ffee1000001303ff3dee8377b901eccc7fffcc898888377fffed17ff0000fe8137ffdaef3777f879f7999ddfffcbaccfd7ff6546f773fea9f77ffcc8ff7331ff8cef1013ffecff12ec0871130011b9ddeeee3efdc80073318cff110fd93f00ff3fff001f4eecefff70ffb7fffffcecc8000119b3fcb73fc3ff0fff3c0060000f136d77ffeeddceff01ff78ffdbbbfffefe00f10077778fff319effe8ff37fecc0133ccee3bdfffe0b113ff9fec93ffe1fc3ff1fffe80e0003773ffc380e87000ff71edb788c8037fcfff000801118c8973777bb96677ffddc8883337b9bfbfec777ffff77333c4ac77f7ffdffec8177f88ce77103333eeef7330f7ffffc0e91316cb00887bcfe81f01ed1ff3dbf7bfff5eeeff91088c3003ffb1eec0008f6c8000200112b910fc8e32220137889b6cc839fffeff0fffff00c88d0eff118cff17ceef77330017fc803000bbbbed99feee07f708ee7376ffefccc800375331eecc4013800818ce88080377088088ef19df8ccfcc00003f16ece934ff7fe00cbbdd117ff77bdefffeedfff9fc00937ffeddffbb9cff1cffc0fff0ffc21180003377c880017f3bfffffdf733d113eeffff8eff779bb9fdfefddddeeff7bdfffb77bbf79ecffc734eff1ff771bdef46ef8b77cdddffb733557b8fce0ff30f30ffc1efc80f593f 01130201030104020501010a06010701080109010a010b0101010c0101080d0108010e0101010f010e01010a10011101010112011301010b1401010115011601010c140117011801010619011a0101051b0101051c0101021d011e01010b1f0120012101220101092301240101012501010c2601270101012801290101022a012b01010a10012c012d012e0114012f01010430013101010432013301340101013501360101032e0137013801010d39013a013b0101ff01ff01ff01233c0101043d0114043e013f01010340014101420243010101100114024401450146014701010248013901010549014a01360139014b01160101034c0101074d014e014f01240101045001010951015201010853015401010d55015601010e57011801010f5801014b59015a01010e51010e01012a4d012201010c5b0104015c01010b5d015e015f01510101093c01600161016201010b6301640114013e014502650166010107670101016801690101036a016b01500101044d012e01010155016c0101056d016e0101036f013901700171017201730101047401750176010103100177017801390179017a0101027b0101017c017d0101047e017f01800101018101820149018301840185018601180101058701070124010101880189018a018b0101018c018d010105570114010701660101038e018f010108900114029101920104019301140159010107390194013701950114019601140297019801010799019a0114029b019c0109019d015601010739019e013901360101029f01a0010e01012c4d018401a1012401010ca2014a01a301a401770101073c01a50101014d0104020101a601a70101067c01a8014701a9011403aa017701ab010104ac01010156010101ad011403ae01af01b0018d0101040701b10180010101b201b3011402b401b501b6010105b7010101b8012401b9019f019001ba01bb019b010106bc010102bd01be01a101bf01c001c101c20101053901c3010103320113019f01c401140116010106c50101063901c60101073901c701010fc801c3010106c9010108ca0101037c012801cb01cc01cd01ce010106cf018301d001d10113016a013601d2013b0201ff01ff01ff01ff01292801cb01d3010e01010b2801d4011401d501010cd60114010801010d1401d701010e1801010e2e0101084d01240101060e010115d8010113d901010b0601da010102db01010bdc01160101a0dd01de01010b3c0101030e01010bdf010101e0010107d9010101e101010de20177013901e3010102e401010ae50101013901e60105015001010ae20177010102e701e8010103e901ea010106eb0104015901cc0101017b010103ec0124010106ed01ee01010350010101ef010601f0010106f101f201f30142018901f401f5014201f601f70101ff01ff0103
+1 16 16 ffffffecf003f00ff308ff73fe03f37f9ffffffe8110401303ff0ffe1437eccc00117fffec8977ffc8881337ffe993ff0000fec137ffdbff3377fc31f7b99ddffff9accf97ffa546f773f77ffec839ff8cef137fff12ec08711388880001b1ddeeee3efdc80073318cff110fd93f00ff3fff0738ee87f8130ffc0ff01cf7f39cfedbe1fc3ff0fff0fff188006000feed7eefbfffefff0003000f0138dbbb1efff0ff17ffb777f7bfff378133ccee37773bdff8cf117ffffcfec7fff8fc00f7330fffc068f100ff71fe9b88c8037f8eff00087777feeefecc01118c8973777bb96677ffdd3337f9bfbfec777fff777333c4ac77f7ffdf177f88ce31003333eeef7330ceffed0116cb008810007bcfe81f00ed0ff3dbf75eeeff91088c3003ffb1eec0ffe0008f001f6c8000200112b910fc8e32220137889b6cc80133feff18ccf001ff00fff7ff9708ce77338013fc80c0007100bbbbed987376ffefccc800075331eecc808818ce88087eff088019df8ccff700cc0012fee934ff7ff00cbbddf77bdeff937ffeddffbb9cfff7ff1cffc0ffcfffb7fffbffffee80001377ecc80017013f3667b3fffffdff33d113eeffffcedbb9fefbfddddeeff7bdfffb77bbf79efff3cffc734eff1ff771bdef46ef8b77cdddffb733557b8fce0ff30fff0f30ffc1efc80f593f 010b0201030104010501060101030201070108010105090101060a010b010c010d010e010f01010a100111011201010113011401010a15011601010117011801010b190114011a011b01010c19011c011d0101061e011f010105200101052101010222012301010b2401250102012601010927010601010128011201010b29012a01010102012b0101022c012d01010a2e012f013001310119013201010433013401010435013601370101013801390101043a013b0101ff01ff01ff013902013c013d013e013f01400101034101420143014401450101024601470119040102480149014a0101024b010101310119034c014d014e0101024f0101074b010e0150015102520101025301010950015401010802015501010d02015601010e57015801010f5901014b5a015b0101595c0144015d0101085e015f01600101014b0161020107170162011904630164010107650112016601670139010102680169016a0101056b0112016c016d0101056e016f010103700101017101720115017301010474017501760101032e01770178014b0179017a0101027b01010127017c0101047d017e017f01010180018101820101014401830184015801010585018601060101018701880189018a0101018b014a010105570119018601640101038c018d0101088e0119028f019001440191011901920101074b0193019401950119019601190297019801010799019a0119029b019c010d019d019e0101074b0128014b01390101029f0161011201013ca001a1016301a201a30101070a01a40101044b01a501a60101060201a7011401a801a9011902aa01a301ab010104ac010101a70112016b0119030d01a501ad014a0101041901ae017f010101af01b0011902b101b2010c010105b3010101b4010601b501b6018e019b01b7019b01010682010102b801b901ba01bb014d01bc01bd0101054b01be010103350152010101bf0119011b010106c00101064b015b0101074b01c101010fc201be0101064801010821010103270102015f01c301c401c5010106c601c701c801c9015201ca0139015101cb0201ff01ff01ff01ff012902015f01a101cc01010bcd01ce011901cf01010cd0011901d1011201010c4601d201010ed301010e310101080a010601010612010115d4010113d501010b0a01d6010102d701010bd8011b0101a0d9017701010b0a0101031201010bda010101db010107d5010101dc01010ddd01a3014b01de010102df01010ae00101014b01e101e2016a01010add01a3010102e301e4010103e501e6010106e70144019201c30101017b010103e80106010106e901ea0101036a010101eb01cd01ec010106ed01ee01ef01f0018801f101f201f001f301f40101ff01ff0103
 ]]
-,pat=
--- pat data --
-[[
-0000001307ff300000c8000e377700077ec013ff003f48861fff133700ef310010007310777700f801ff1137008f44ce33337fff7b8f000f137f0001000c0003000808ce0002311100092acc377f3fff11117331037f067711337773777f330003ff021002c073000fff22222000
-]]
-
+,c=function(p,i)
+local op=fillpat.p
+return op[p][2]*op[p][3]*15*i
+end
+,p={{}}
 ,draw=function(i,x,y)
-local o=fillpat
-local pr=flr(i/12)
-local c=0
-local s=1
-if pr==0 then pr=1
-else repeat
-if sub(o.pat,s,s)=="\n" then c+=1
-if c==pr then pr=s+1 end
+ local o=fillpat
+ local d=''
+ local dd=''
+ local ii=0
+ local op=o.p
+if o.dd==nil then
+d=o.d
+repeat
+ local s=sub(d,1,1)
+ d=sub(d,2,#d)
+ if s==" " or s=="\n" then
+  add(op[#op],dd)
+  if s=="\n" then add(op,{}) end
+  dd=''
+ else
+  dd=dd..s
+ end
+until #d==0
+dd={}
+del(op,op[#op])
+local p=#op
+for pp=1,p do
+d=op[pp][5]
+dd[pp]={}
+local lb=op[pp][4]
+while #d>0 do
+local f=(tonum('0x'..sub(d,1,2))-1)*4
+local m=tonum('0x'..sub(d,3,4))
+d=sub(d,5,#d)
+repeat
+add(dd[pp],tonum('0x'..sub(lb,f+1,f+4))+0x.8)
+m-=1
+until m<1
 end
-s+=1
-until #o.pat<s or (c==pr and pr==s+1)
 end
-for cy=1,8 do
-for cx=1,8 do
-local row=(i*256)+i
-local fx=shl(band(cx-1,7),2)
-local fy=shl(cy-1,5)
-local clpi=sub(o.cpi,row+fx+fy+1,row+fx+fy+4)
-local idp=shl(tonum('0x'..sub(clpi,3,4))-1,2)
-fillp(tonum('0x'..sub(o.pat,idp+pr,idp+pr+3)))
-local xx=(cx-1)*4+x
-local yy=(cy-1)*4+y
-rectfill(xx,yy,xx+3,yy+3,tonum('0x'..sub(clpi,1,2)))
+o.dd=dd
+end
+p=0
+dd=0
+i-=1
+repeat
+p+=1
+i-=dd
+if o.dd[p+0]==nil then return true end
+dd=op[p][1]
+until i-dd<0
+local w=op[p][2]
+local h=op[p][3]
+for dd=o.c(p,i),o.c(p,i+1)-1 do
+d=o.dd[p][dd+1]
+if d~=0xffff.8 then 
+fillp(d)
+local xx=4*(dd%w)+x
+local yy=4*(flr(dd/w)%h)+y
+rectfill(xx,yy,xx+3,yy+3,flr(dd/(w*h))%15+1)
 end
 end
-fillp()
+return false
 end
 }
 
@@ -1481,38 +1362,38 @@ __gfx__
 000000000000000088888888889999999999aaaaaaaaaabbbbbbbbbb10033b333b3b3bbb3b3b33b0000000010000000010000000000000001000000010000001
 0000000000000000ccccccccccddddddddddeeeeeeeeeeffffffffff10033b333b3b3b0b3b3b33b0000000010000000010000000000000001000000010000001
 0000000000000000ccccccccccddddddddddeeeeeeeeeeffffffffff10033bbb3bbb3b3b3bb033b0000000011111111110000000000000001000000010000001
-66666666666699777777666699999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-66666666699999997777666699999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-66666669999999999977666999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-666666999999999997776699fff99999000999000000000000000000009990000000000000000000000000000000000000000000000000000000000000000000
-666666999999999995559999fff99999009999990000000000000000099999000000000000000000000000000000000000000000000000000000000000000000
-666669999999999955599999ff999999009999999000000000000000999999000000000000000000000000000000000000000000000000000000000000000000
-66666999999999995599999999999999009999999900000000000009999999000000000000000000000000000000000000000000000000000000000000000000
-66666999999995559999999999999999009999999990000000900099999999000000000000000000000000000000000000000000000000000000000000000000
-6666595599955559999999ffff999999009944999990000000900099994499000000000000000000000000000000000000000000000000000000000000000000
-666695555555559999999ffffff99999099944499999000090900999944499900000000000000000000000000000000000000000000000000000000000000000
-6699955555555599fff99fffffff9999099944499999000099000999944499900000000000000000000000000000000000000000000000000000000000000000
-9999599555555999ffff9fffffff9999099944499999900999009999944499900000000000000000000000000000000000000000000000000000000000000000
-9999999595555999ffff99ffffff9997099944999999999999999999994499900000000000000000000000000000000000000000000000000000000000000000
-9999999999555999ffff999ffff99997099999999999999999999999999999900000000000000000000000000000000000000000000000000000000000000000
-99999999999559999999999999999977099999999999999999999999999999900000000000000000000000000000000000000000000000000000000000000000
-99999999999959999fff999999999777099999999999999999999999999999900000000000000000000000000000000000000000000000000000000000000000
-9999999999995999fffff9ffff999777099999999999999999999999999999900000000000000000000000000000000000000000000000000000000000000000
-9999999999995999fffff9ffff997777009999999911999999999119999999900000000000000000000000000000000000000000000000000000000000000000
-99999999999959999fff99ffff997777009999999111999999999111999999000000000000000000000000000000000000000000000000000000000000000000
-99999999999959999999999fff997777000999991111999999999111199999000000000000000000000000000000000000000000000000000000000000000000
-99999999999959999999999999977777000999992222999999999222299999000000000000000000000000000000000000000000000000000000000000000000
-99999999999995999999999999777777000099992222999999999222299990000000000000000000000000000000000000000000000000000000000000000000
-99999999999995559999999997777777000099992222999999999222299990000000000000000000000000000000000000000000000000000000000000000000
-99999999999999995555999977777777000009999229999111999922999900000000000000000000000000000000000000000000000000000000000000000000
-99999999999999999999577777777777000000999999777777777999999000000000000000000000000000000000000000000000000000000000000000000000
-99999999999999999999777777777777000000999977772777277799990000000000000000000000000000000000000000000000000000000000000000000000
-99999999999999999977777777777777000000007777777222777777000000000000000000000000000000000000000000000000000000000000000000000000
-99999999999999977777777777777777000000007777777777777777000000000000000000000000000000000000000000000000000000000000000000000000
-99999999999977777777777777777777000000000007777777777700000000000000000000000000000000000000000000000000000000000000000000000000
-99999999999777777777777777777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-99999999777777777777777777777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-99999997777777777777777777777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+eeeeeeeeeeeeeeee6666666696669999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+eeeeeeeeeeeeeeeeee66666666999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+eeeeeeeeeeeeeeee6666666699999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000e6666669999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00006666666666666666999999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66006666666666666669999999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666666666699999999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666666669999999999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666666699999999999999999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666666999999999ffff99999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+666666666666699999fff99ffff99999000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666669999ffff99ffff99997000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666669999fff999fff999977000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+666666666666699999ff999999999977000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666669999999999999999777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666669999ffff9fff9999777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+6666666666666999fffff9ffff999777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+6666666666666999fffff9ffff997777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666669999ff999ff99997777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666669999999999f99997777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666669999999999999777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666666999999999997777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666666666666669999999977777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66666660000066660000999977777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+66660000000000000000000777777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000777777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000007777777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000007777777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000777777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000d0000d0000d000000777777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000d0000d0000d000000000777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000d0000d0000d000000007707777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000000d0000d0000d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000000d0000d0000d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000000d0000d0000d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -1697,7 +1578,7 @@ __label__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __map__
-003b3b3b3b3b3b3b3b003b3b3b3b3b0006060606060606060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+003b3b3b3b3b3b3b3b003b013b3b3b0006060606060606060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 3a00000000000200003f00030405063c06060606060606060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 3a00000000000000003f12131415163c06060606060606060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 3a00000000000000003f22232425263c06060606060606060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
